@@ -36,7 +36,7 @@ library(rattle)
 setInternet2(TRUE)
 ```
 
-```{r code}
+```{r code, cache =TRUE}
 #data file locations
 trainfileUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
 testfileUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
@@ -85,7 +85,8 @@ print(rf_fit$finalModel)
 
 Model Plot:
 ```{r Plot Model Errors vs. Number of Trees}
-plot(rf_fit$finalModel, log="y", main = "Model Error vs. Number of Trees")
+plot(rf_fit$finalModel, log = "y", main = "Model Error vs. Number of Trees")
+legend("topright", colnames(rf_fit$finalModel$err.rate), lty = seq(1:6), col = seq(1:6), cex=0.8)
 ```
 
 Variable Importance: The graph below shows the variable importance with the least important at the top of the graph and the most important at the botom.  The roll belt sensor data was the most importance variable.
