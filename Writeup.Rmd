@@ -1,0 +1,116 @@
+---
+title: 'Practial Machine Learning: Weight Lifting Quality'
+author: "bhill-10"
+date: "August 17, 2015"
+output: html_document
+---
+Using Random Forest Algorithm to Predict the Quality of Dumbell Exercises
+---
+
+Using acceleromters, data representing 9 degrees of freedom of motion was collected on participants preforming dumbell bicep curls.  The 6 male participants were instructed to perform the exercises in five manners.  Velloso et al. in "Qualitative Activity Recognition of Weight Lifting Exercises" classified the exercises to the following specifications:
+
+1. Class A: Exactly according to the specification 
+2. Class B: Throwing the elbows to the front 
+3. Class C: Lifting the dumbbellonly halfway 
+4. Class D: Lowering the dumbbell only halfway
+5. Class E: Throwing the hips to the front 
+
+The authors note that Class A represents correct execution of the exercise, and Classes B-E represent common mistakes.
+
+In this exercise, the goal is to train a machine learning algorithm on a training set comprising the data collected from the accelerometers, and the classification of the quality of the exercise--Class A thru Class E. A test set of the data was then used to determine the accuracy of the model.  A random forest algorithm was selected as a solution to the exercise.  Random forest is a form of classification tree that is highly suited to this analysis.  Instead of relying on one classification tree that can be highly dependent on initial splits, random forest randomly chooses predictors on which to initialize splits in the classification tree.  Bagging is then used to build a collection of trees, and as a consequence of the random choice of predictors, the set of trees are uncorrelated.  The trees are then averaged into one predictive model.  The random forest algorithm combines the benefits of boosting and bagging and at the same time, are much easier to tune.  With large sample sizes, random forests can avoid overfitting issues that can plague other selections of algorithms.  In addition, the use of Out of Bag (OOB) errors by the algorithm is almost identical to an N-fold cross validation; random forest algorithms thus can be fit in one sequence with cross-validation performed along the way. Training of the algorithm ceases as OOB errors stabilize. (see p. 593, The Elements of Statistical Learning by Hastie et. al)
+
+Conclusion:  The random forest model had an Accuracy of 99.3% and an Out of Bag (OOB) error rate of 0.45%.  The predictions for the exercise were correct 20 out of 20 activities.
+
+
+The code used to create the random forest model is below:
+```{r Make sure required libraries are loaded, results='hide', message=FALSE }
+#load libraries
+library(plyr)
+library(dplyr)
+library(ggplot2)
+library(caret)
+library(parallel)
+library(rpart)
+library(randomForest)
+library(rattle)
+setInternet2(TRUE)
+```
+
+```{r code}
+#data file locations
+trainfileUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testfileUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+#load training and test datasets
+traindata <- read.csv(trainfileUrl, stringsAsFactors = FALSE)
+testdata <- read.csv(testfileUrl, stringsAsFactors = FALSE)
+
+#prep data and remove character vectors that are irrelevant to the analysis
+col_class <- sapply(traindata, class)
+mytrain <- traindata[col_class != "character"]
+mytrain <- mytrain[, !names(mytrain) %in% c("X", "raw_timestamp_part_1","raw_timestamp_part_2", "num_window")]
+excl <- apply(mytrain,2, is.na)
+excl <- apply(excl, 2, sum)
+mytrain <-mytrain[, excl == 0]
+mytrain$classe <- as.factor(traindata$classe)
+
+#set seed for random number generator
+set.seed(3456)
+
+#call the random forest model with default values
+rf_fit <- train(classe~., data = mytrain, method ="rf")
+
+#prepare the test data in same manner as training data
+col_class <- sapply(testdata, class)
+mytest <- testdata[col_class != "character"]
+mytest <- mytest[, !names(mytest) %in% c("X", "raw_timestamp_part_1","raw_timestamp_part_2", "num_window")]
+excl <- apply(mytest,2, is.na)
+excl <- apply(excl, 2, sum)
+mytest <-mytest[, excl == 0]
+
+#predict test data cases
+pred_rf2 <- predict(rf_fit, mytest)
+```
+
+The final random forest model had an accuracy of 0.993.
+```{r}
+#display model summary
+print(rf_fit)
+```
+
+The Out of Bag (OOB) error rate was 0.45%
+```{r}
+print(rf_fit$finalModel)
+```
+
+Model Plot:
+```{r Plot Model Errors vs. Number of Trees}
+plot(rf_fit$finalModel, log="y", main = "Model Error vs. Number of Trees")
+```
+
+Variable Importance: The graph below shows the variable importance with the least important at the top of the graph and the most important at the botom.  The roll belt sensor data was the most importance variable.
+
+```{r Variable Importance Plot, fig.width=12, fig.height=12}
+#create dataframe of variable importance for ggplot argument
+var_importance <-transform(importance(rf_fit$finalModel))
+var_names <- rownames(var_importance)
+var_importance <- cbind(var_names, var_importance)
+rownames(var_importance) <- NULL
+var_importance <- arrange(var_importance, desc(MeanDecreaseGini))
+var_importance$var_names<- factor(as.character(var_importance$var_names), levels=var_importance$var_names)
+
+#create ggplot of variable importance
+p <- ggplot(var_importance, aes(x=var_names, weight= MeanDecreaseGini, fill=var_names))
+p <- p + geom_bar() + coord_flip() + ggtitle("Variable Importance from Random Forest Fit")
+p <- p + xlab("Sensor Variable" ) + ylab("Mean Decrease in Gini Index")
+p <- p + scale_fill_discrete(name="Variable Name") 
+p + theme(axis.text.x=element_text(size = 12),
+          axis.text.y=element_text(size=12),
+          axis.title=element_text(size=16),
+          plot.title=element_text(size=16),
+          legend.title=element_text(size=12),
+          legend.text=element_text(size=12))
+```
+
+
+
